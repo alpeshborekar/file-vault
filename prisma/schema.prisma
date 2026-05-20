@@ -1,0 +1,102 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+//Users 
+
+model User {
+  id               String   @id @default(uuid())
+  email            String   @unique
+  passwordHash     String   @map("password_hash")
+  storageQuotaBytes BigInt  @default(5368709120) @map("storage_quota_bytes") // 5 GB
+  storageUsedBytes  BigInt  @default(0)          @map("storage_used_bytes")
+  createdAt        DateTime @default(now())      @map("created_at")
+  updatedAt        DateTime @updatedAt           @map("updated_at")
+
+  files  File[]
+  shares FileShare[]
+
+  @@map("users")
+}
+
+//files
+
+enum FileStatus {
+  processing
+  ready
+  infected
+  failed
+}
+
+model File {
+  id           String     @id @default(uuid())
+  userId       String     @map("user_id")
+  name         String
+  mimeType     String     @map("mime_type")
+  sizeBytes    BigInt     @map("size_bytes")
+  sha256Hash   String     @map("sha256_hash")
+  storageKey   String     @map("storage_key")     // S3 object key
+  thumbnailKey String?    @map("thumbnail_key")
+  status       FileStatus @default(processing)
+  isDeleted    Boolean    @default(false)          @map("is_deleted")
+  expiresAt    DateTime?  @map("expires_at")
+  createdAt    DateTime   @default(now())          @map("created_at")
+  updatedAt    DateTime   @updatedAt               @map("updated_at")
+
+  user     User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  versions FileVersion[]
+  shares   FileShare[]
+
+  @@index([userId])                           // list files by user
+  @@index([sha256Hash])                       // O(1) dedup lookup
+  @@index([expiresAt])                        // cleanup cron
+  @@index([userId, isDeleted, createdAt])     // paginated listing
+  @@map("files")
+}
+
+//File Versions 
+
+model FileVersion {
+  id          String   @id @default(uuid())
+  fileId      String   @map("file_id")
+  versionNum  Int      @map("version_num")
+  storageKey  String   @map("storage_key")
+  sizeBytes   BigInt   @map("size_bytes")
+  sha256Hash  String   @map("sha256_hash")
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  file File @relation(fields: [fileId], references: [id], onDelete: Cascade)
+
+  @@unique([fileId, versionNum])
+  @@index([fileId])
+  @@map("file_versions")
+}
+
+//  File Shares (Access Control)
+
+enum SharePermission {
+  read
+  write
+}
+
+model FileShare {
+  id           String          @id @default(uuid())
+  fileId       String          @map("file_id")
+  sharedWithId String?         @map("shared_with_id")   // null = public link
+  token        String?         @unique                   // public share token
+  permission   SharePermission @default(read)
+  expiresAt    DateTime?       @map("expires_at")
+  createdAt    DateTime        @default(now())           @map("created_at")
+
+  file       File  @relation(fields: [fileId], references: [id], onDelete: Cascade)
+  sharedWith User? @relation(fields: [sharedWithId], references: [id])
+
+  @@index([fileId])
+  @@index([token])
+  @@map("file_shares")
+}

@@ -1,0 +1,109 @@
+{
+  "name": "file-storage-system",
+  "version": "1.0.0",
+  "description": "Scalable file storage backend — Google Drive / Dropbox clone",
+  "main": "dist/app.js",
+  "type": "commonjs",
+  "directories": {
+    "example": "examples",
+    "test": "tests"
+  },
+  "scripts": {
+    "dev": "ts-node-dev --respawn --transpile-only src/app.ts",
+    "build": "tsc",
+    "start": "node dist/app.js",
+
+    "prisma:migrate": "prisma migrate dev",
+    "prisma:generate": "prisma generate",
+    "prisma:studio": "prisma studio",
+    "prisma:seed": "ts-node prisma/seed.ts",
+
+    "worker:scan": "ts-node-dev --respawn --transpile-only src/workers/scan.worker.ts",
+    "worker:thumbnail": "ts-node-dev --respawn --transpile-only src/workers/thumbnail.worker.ts",
+    "worker:process": "ts-node-dev --respawn --transpile-only src/workers/process.worker.ts",
+
+    "cleanup:run": "ts-node src/utils/cleanup.cron.ts",
+
+    "docker:up": "docker-compose up -d",
+    "docker:down": "docker-compose down",
+    "docker:logs": "docker-compose logs -f api",
+
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:coverage": "vitest run --coverage",
+    "test:ui": "vitest --ui"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/alpeshborekar/file-vault.git"
+  },
+  "keywords": [
+    "nodejs",
+    "typescript",
+    "prisma",
+    "file-storage",
+    "s3",
+    "express",
+    "bullmq"
+  ],
+  "author": "Alpesh Borekar",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/alpeshborekar/file-vault/issues"
+  },
+  "homepage": "https://github.com/alpeshborekar/file-vault#readme",
+
+  "dependencies": {
+    "@aws-sdk/client-s3": "^3.540.0",
+    "@aws-sdk/s3-request-presigner": "^3.540.0",
+    "@bull-board/api": "^5.20.0",
+    "@bull-board/express": "^5.20.0",
+    "@prisma/client": "^5.11.0",
+    "bcryptjs": "^2.4.3",
+    "bullmq": "^5.4.2",
+    "cors": "^2.8.5",
+    "dotenv": "^16.4.5",
+    "express": "^4.18.3",
+    "express-rate-limit": "^7.2.0",
+    "helmet": "^7.1.0",
+    "ioredis": "^5.3.2",
+    "jsonwebtoken": "^9.0.2",
+    "morgan": "^1.10.0",
+    "multer": "^1.4.5-lts.1",
+    "pino": "^8.19.0",
+    "pino-pretty": "^11.0.0",
+    "prom-client": "^15.1.2",
+    "rate-limit-redis": "^4.2.0",
+    "sharp": "^0.33.3",
+    "socket.io": "^4.7.5",
+    "uuid": "^9.0.1",
+    "zod": "^3.22.4"
+  },
+
+  "devDependencies": {
+    "@testcontainers/minio": "^10.9.0",
+    "@testcontainers/postgresql": "^10.9.0",
+    "@testcontainers/redis": "^10.9.0",
+    "@types/bcryptjs": "^2.4.6",
+    "@types/cors": "^2.8.17",
+    "@types/express": "^4.17.21",
+    "@types/jsonwebtoken": "^9.0.6",
+    "@types/morgan": "^1.9.9",
+    "@types/multer": "^1.4.11",
+    "@types/node": "^20.11.30",
+    "@types/socket.io": "^3.0.2",
+    "@types/supertest": "^6.0.2",
+    "@types/uuid": "^9.0.8",
+    "@vitest/coverage-v8": "^1.6.0",
+    "prisma": "^5.11.0",
+    "supertest": "^7.0.0",
+    "testcontainers": "^10.9.0",
+    "ts-node-dev": "^2.0.0",
+    "typescript": "^5.4.3",
+    "vitest": "^1.6.0"
+  },
+
+  "prisma": {
+    "seed": "ts-node prisma/seed.ts"
+  }
+}
