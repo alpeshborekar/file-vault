@@ -12,6 +12,13 @@ import { authenticate } from './middleware/auth.middleware';
 import authRoutes   from './routes/auth.routes';
 import uploadRoutes from './routes/upload.routes';
 import fileRoutes   from './routes/file.routes';
+import healthRoutes from './routes/health.routes';
+
+import { initSocketServer }   from './config/socket';
+import { initProgressBridge } from './services/progress.service';
+import { metricsMiddleware }  from './middleware/metrics.middleware';
+import { startMetricsCron }   from './utils/metrics.cron';
+
 
 export function createApp() {
   const app = express();
@@ -35,24 +42,20 @@ export function createApp() {
     }),
   );
 
+  //Prometheus HTTP instrumentation
+  app.use(metricsMiddleware);
 
-
+  // Body parsers
   app.use(express.json({ limit: '1mb' }));
   app.use(express.urlencoded({ extended: true, limit: '1mb' }));
 
-  //Health check
-  app.get('/health', (_req, res) => {
-    res.json({
-      status:    'ok',
-      env:       config.env,
-      timestamp: new Date().toISOString(),
-    });
-  });
-
+  //  API routes
   app.use('/auth',   authRoutes);
   app.use('/upload', authenticate as any, uploadRoutes);
   app.use('/files',  fileRoutes);
+  app.use('/health', healthRoutes);  
 
+  //404 + global error handler (must be LAST)
   app.use(notFoundHandler);
   app.use(errorHandler);
 
@@ -70,11 +73,22 @@ async function bootstrap() {
 
     const app = createApp();
 
-    const server = app.listen(config.port, () => {
+    // Wrap Express in HTTP server so Socket.IO shares the same port
+    const { createServer } = await import('http');
+    const httpServer = createServer(app);
+
+    initSocketServer(httpServer);
+    initProgressBridge();
+
+    startMetricsCron(60_000);
+
+    const server = httpServer.listen(config.port, () => {
       logger.info(`🚀  Server running on http://localhost:${config.port}`);
+      logger.info(`🔌  WebSocket ready on ws://localhost:${config.port}`);
+      logger.info(`📊  Metrics at http://localhost:${config.port}/metrics`);
     });
 
-    //Graceful shutdown
+    // Graceful shutdown
     const shutdown = async (signal: string) => {
       logger.info(`${signal} received — shutting down gracefully`);
       server.close(async () => {
@@ -85,8 +99,6 @@ async function bootstrap() {
         logger.info('Server closed');
         process.exit(0);
       });
-
-      // Force exit after 10s if connections hang
       setTimeout(() => process.exit(1), 10_000);
     };
 
