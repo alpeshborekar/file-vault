@@ -7,10 +7,7 @@ import { RegisterSchema, LoginSchema } from '../models/schemas';
 
 const router = Router();
 
-/**
- * POST /auth/register
- * Rate limited to prevent account spam
- */
+
 router.post(
   '/register',
   authRateLimit,
@@ -18,10 +15,7 @@ router.post(
   authController.register,
 );
 
-/**
- * POST /auth/login
- * Rate limited to prevent brute force
- */
+
 router.post(
   '/login',
   authRateLimit,
@@ -29,10 +23,7 @@ router.post(
   authController.login,
 );
 
-/**
- * GET /auth/me
- * Returns current user profile + storage usage
- */
+
 router.get(
   '/me',
   authenticate as any,

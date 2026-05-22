@@ -2,16 +2,19 @@ import Redis from 'ioredis';
 import { config } from './index';
 import { logger } from '../utils/logger';
 
-// Single Redis client shared across the app (cache + BullMQ)
+// Shared Redis client
 export const redis = new Redis(config.redis.url, {
-  maxRetriesPerRequest: null,   // required by BullMQ
-  lazyConnect: true,
-  enableReadyCheck: true,
+  maxRetriesPerRequest: null,
 });
 
-redis.on('connect', () => logger.info('Redis connected'));
-redis.on('error', (err) => logger.error({ err }, 'Redis error'));
+redis.on('connect', () => {
+  logger.info('Redis connected');
+});
+
+redis.on('error', (err) => {
+  logger.error({ err }, 'Redis error');
+});
 
 export async function connectRedis(): Promise<void> {
-  await redis.connect();
+  return;
 }
