@@ -6,7 +6,12 @@ import { AuthRequest } from '../models/types';
 
 function makeStore(prefix: string) {
   return new RedisStore({
-    sendCommand: (...args: string[]) => redis.call(...args),
+    sendCommand: (...args: string[]) =>
+      redis.call(
+        args[0],
+        ...args.slice(1),
+      ) as Promise<any>,
+
     prefix: `rl:${prefix}:`,
   });
 }
@@ -17,7 +22,9 @@ export const uploadRateLimit = rateLimit({
   max: 10,
 
   keyGenerator: (req) =>
-    (req as AuthRequest).user?.userId ?? req.ip ?? 'anon',
+    (req as AuthRequest).user?.userId ??
+    req.ip ??
+    'anon',
 
   store: makeStore('upload'),
 
@@ -37,7 +44,8 @@ export const authRateLimit = rateLimit({
   windowMs: 15 * 60 * 1000,
   max: 100,
 
-  keyGenerator: (req) => req.ip ?? 'anon',
+  keyGenerator: (req) =>
+    req.ip ?? 'anon',
 
   store: makeStore('auth'),
 
@@ -46,7 +54,8 @@ export const authRateLimit = rateLimit({
 
   message: {
     error: 'RATE_LIMITED',
-    message: 'Too many auth attempts. Retry in 15m.',
+    message:
+      'Too many auth attempts. Retry in 15m.',
   },
 });
 
@@ -56,7 +65,9 @@ export const readRateLimit = rateLimit({
   max: 100,
 
   keyGenerator: (req) =>
-    (req as AuthRequest).user?.userId ?? req.ip ?? 'anon',
+    (req as AuthRequest).user?.userId ??
+    req.ip ??
+    'anon',
 
   store: makeStore('read'),
 

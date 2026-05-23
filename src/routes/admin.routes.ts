@@ -1,8 +1,8 @@
 import { Router } from 'express';
 import { createBullBoard } from '@bull-board/api';
-import { BullMQAdapter }   from '@bull-board/api/bullMQAdapter';
-import { ExpressAdapter }  from '@bull-board/express';
-import { config }          from '../config';
+import { BullMQAdapter } from '@bull-board/api/bullMQAdapter';
+import { ExpressAdapter } from '@bull-board/express';
+import { config } from '../config';
 
 const router = Router();
 
@@ -12,13 +12,15 @@ function getQueue() {
   return processingQueue;
 }
 
-
 if (config.isDev) {
   const serverAdapter = new ExpressAdapter();
+
   serverAdapter.setBasePath('/admin/queues');
 
   createBullBoard({
-    queues:        [new BullMQAdapter(getQueue())],
+    queues: [
+      new BullMQAdapter(getQueue() as any) as any,
+    ],
     serverAdapter,
   });
 
@@ -26,7 +28,7 @@ if (config.isDev) {
 } else {
   router.use('/queues', (_req, res) => {
     res.status(403).json({
-      error:   'FORBIDDEN',
+      error: 'FORBIDDEN',
       message: 'Admin UI disabled in production',
     });
   });
