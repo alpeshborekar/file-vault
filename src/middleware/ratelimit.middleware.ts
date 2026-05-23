@@ -35,7 +35,7 @@ export const uploadRateLimit = rateLimit({
 /** 5 login attempts per IP per 15 minutes */
 export const authRateLimit = rateLimit({
   windowMs: 15 * 60 * 1000,
-  max: 5,
+  max: 100,
 
   keyGenerator: (req) => req.ip ?? 'anon',
 
