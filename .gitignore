@@ -4,4 +4,3 @@ dist/
 *.log
 uploads/
 .DS_Store
-prisma/migrations/
