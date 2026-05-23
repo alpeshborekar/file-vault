@@ -18,4 +18,6 @@ if (config.storage.aws.accessKeyId && config.storage.aws.secretAccessKey) {
   };
 }
 
+// console.log(s3Config);
+
 export const s3Client = new S3Client(s3Config);
