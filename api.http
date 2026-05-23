@@ -1,0 +1,171 @@
+@baseUrl = http://localhost:3000
+@token =eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VySWQiOiJhMzJhZjlkYS00MDU4LTQ1NjktYmIxYS02NjczOGUzYThlZjIiLCJlbWFpbCI6ImFscGVzaEAxZXhhbXBsZS5jb20iLCJpYXQiOjE3Nzk1Mjg5OTQsImV4cCI6MTc4MDEzMzc5NH0.xBqnMAji6wIm4-JZ9Q2RBkRihh_wXpUpkLI9GuiHMbQ
+
+### =========================================================
+### HEALTH
+### =========================================================
+
+### Health Check
+GET {{baseUrl}}/health
+
+
+### Metrics
+GET {{baseUrl}}/metrics
+
+
+### =========================================================
+### AUTH
+### =========================================================
+
+### Register User
+POST {{baseUrl}}/auth/register
+Content-Type: application/json
+
+{
+  "name": "Alpesh",
+  "email": "alpesh@1example.com",
+  "password": "Password123"
+}
+
+
+### Login User
+POST {{baseUrl}}/auth/login
+Content-Type: application/json
+
+{
+  "email": "alpesh@1example.com",
+  "password": "Password123"
+}
+
+
+### Current User
+GET {{baseUrl}}/auth/me
+Authorization: Bearer {{token}}
+
+
+### =========================================================
+### FILES
+### =========================================================
+
+### Get Storage Summary
+GET {{baseUrl}}/files/storage
+Authorization: Bearer {{token}}
+
+
+### List Files
+GET {{baseUrl}}/files
+Authorization: Bearer {{token}}
+
+
+### Get File By ID
+GET {{baseUrl}}/files/FILE_ID_HERE
+Authorization: Bearer {{token}}
+
+
+### Delete File
+DELETE {{baseUrl}}/files/FILE_ID_HERE
+Authorization: Bearer {{token}}
+
+
+### Get File Versions
+GET {{baseUrl}}/files/FILE_ID_HERE/versions
+Authorization: Bearer {{token}}
+
+
+### Create Share Link
+POST {{baseUrl}}/files/FILE_ID_HERE/share
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "expiresInHours": 24
+}
+
+
+### Resolve Share Link
+GET {{baseUrl}}/files/shared/SHARE_TOKEN_HERE
+
+
+### =========================================================
+### UPLOADS
+### =========================================================
+
+### Single File Upload
+POST {{baseUrl}}/upload
+Authorization: Bearer {{token}}
+Content-Type: multipart/form-data; boundary=boundary
+
+--boundary
+Content-Disposition: form-data; name="file"; filename="test.txt"
+Content-Type: text/plain
+
+< ./test.txt
+--boundary--
+
+
+### Upload Same File Again (Dedup Test)
+POST {{baseUrl}}/upload
+Authorization: Bearer {{token}}
+Content-Type: multipart/form-data; boundary=boundary
+
+--boundary
+Content-Disposition: form-data; name="file"; filename="test.txt"
+Content-Type: text/plain
+
+< ./test.txt
+--boundary--
+
+
+### =========================================================
+### MULTIPART
+### =========================================================
+
+### Multipart Init
+POST {{baseUrl}}/upload/multipart/init
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "filename": "large-video.mp4",
+  "mimeType": "video/mp4",
+  "totalSize": 50000000,
+  "chunkCount": 5
+}
+
+
+### Multipart Complete
+POST {{baseUrl}}/upload/multipart/FILE_ID_HERE/complete
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "parts": [
+    {
+      "partNumber": 1,
+      "etag": "etag-1"
+    }
+  ]
+}
+
+
+### =========================================================
+### INVALID TOKEN TEST
+### =========================================================
+
+### Invalid JWT
+GET {{baseUrl}}/auth/me
+Authorization: Bearer invalid-token
+
+
+### =========================================================
+### RATE LIMIT TEST
+### =========================================================
+
+### Spam Login
+POST {{baseUrl}}/auth/login
+Content-Type: application/json
+
+{
+  "email": "wrong@example.com",
+  "password": "wrongpassword"
+}
