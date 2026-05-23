@@ -1,4 +1,5 @@
 
+
 services:
   postgres:
     image: postgres:17
@@ -6,7 +7,7 @@ services:
     restart: unless-stopped
     environment:
       POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: Alpesh123456+
+      POSTGRES_PASSWORD: password
       POSTGRES_DB: filestorage
     ports:
       - "5432:5432"
