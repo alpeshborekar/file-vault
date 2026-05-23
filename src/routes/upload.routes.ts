@@ -3,7 +3,12 @@ import { uploadController } from '../controllers/upload.controller';
 import { upload } from '../middleware/multer.middleware';
 import { validate } from '../middleware/validate.middleware';
 import { uploadRateLimit } from '../middleware/ratelimit.middleware';
-import { MultipartInitSchema, MultipartCompleteSchema } from '../models/schemas';
+import { authenticate } from '../middleware/auth.middleware';
+
+import {
+  MultipartInitSchema,
+  MultipartCompleteSchema,
+} from '../models/schemas';
 
 const router = Router();
 
@@ -21,25 +26,45 @@ const router = Router();
  *     summary: Upload a single file
  *     tags: [Upload]
  *     security:
- *       - BearerAuth: []
+ *       - bearerAuth: []
  *     description: |
  *       Accepts multipart/form-data with a `file` field.
  *
- *       **Deduplication:** SHA-256 hash computed while streaming.
- *       If identical content already exists, returns 200 with `deduplicated: true`
- *       and reuses the existing S3 blob — no re-upload, no re-scan.
+ *       ## Deduplication
+ *       SHA-256 hash is computed while streaming.
+ *       If identical content already exists:
+ *       - returns HTTP 200
+ *       - `deduplicated: true`
+ *       - reuses existing S3/MinIO object
+ *       - avoids duplicate storage + rescanning
  *
- *       **Processing:** File is queued for virus scan + thumbnail generation.
- *       Status transitions: `processing` → `ready` (or `infected`/`failed`).
+ *       ## Processing Pipeline
+ *       Uploaded files are queued for:
+ *       - virus scanning
+ *       - thumbnail generation
+ *       - metadata extraction
  *
- *       **Rate limit:** 10 uploads per user per minute.
+ *       Status flow:
+ *       `processing → ready`
+ *       or
+ *       `processing → infected/failed`
+ *
+ *       ## Architecture
+ *       - Metadata stored in PostgreSQL
+ *       - Binary objects stored in MinIO/S3
+ *       - Background jobs handled by BullMQ
+ *       - Redis used for queues + caching
+ *
+ *       ## Rate Limit
+ *       10 uploads per user per minute.
  *     requestBody:
  *       required: true
  *       content:
  *         multipart/form-data:
  *           schema:
  *             type: object
- *             required: [file]
+ *             required:
+ *               - file
  *             properties:
  *               file:
  *                 type: string
@@ -52,8 +77,17 @@ const router = Router();
  *           application/json:
  *             schema:
  *               $ref: '#/components/schemas/FileUploadResponse'
+ *             example:
+ *               fileId: 3fa85f64-5717-4562-b3fc-2c963f66afa6
+ *               name: report.pdf
+ *               mimeType: application/pdf
+ *               sizeBytes: "204800"
+ *               status: processing
+ *               deduplicated: false
+ *               createdAt: 2026-05-23T13:07:34.947Z
+ *
  *       200:
- *         description: Duplicate file — reusing existing blob
+ *         description: Duplicate file — existing object reused
  *         content:
  *           application/json:
  *             schema:
@@ -61,21 +95,39 @@ const router = Router();
  *                 - $ref: '#/components/schemas/FileUploadResponse'
  *                 - type: object
  *                   properties:
- *                     deduplicated: { type: boolean, example: true }
- *                     status:       { type: string,  example: ready }
+ *                     deduplicated:
+ *                       type: boolean
+ *                       example: true
+ *                     status:
+ *                       type: string
+ *                       example: ready
+ *             example:
+ *               fileId: 3fa85f64-5717-4562-b3fc-2c963f66afa6
+ *               name: report.pdf
+ *               mimeType: application/pdf
+ *               sizeBytes: "204800"
+ *               status: ready
+ *               deduplicated: true
+ *               createdAt: 2026-05-23T13:07:34.947Z
+ *
  *       400:
  *         description: No file provided
+ *
  *       401:
  *         description: Missing or invalid JWT
+ *
  *       413:
  *         description: File exceeds maximum size (500MB)
+ *
  *       415:
  *         description: File type not allowed
+ *
  *       429:
  *         description: Rate limit exceeded
  */
 router.post(
   '/',
+  authenticate as any,
   uploadRateLimit,
   upload.single('file'),
   uploadController.single as any,
@@ -85,38 +137,59 @@ router.post(
  * @swagger
  * /upload/multipart/init:
  *   post:
- *     summary: Initiate a chunked upload for large files
+ *     summary: Initiate a multipart upload for large files
  *     tags: [Upload]
  *     security:
- *       - BearerAuth: []
+ *       - bearerAuth: []
  *     description: |
- *       **For files larger than 10MB.**
+ *       Used for files larger than 10MB.
  *
- *       Returns N pre-signed S3 URLs — one per chunk.
- *       The client uploads each chunk **directly to S3** in parallel.
- *       Your API server handles only metadata — zero binary data passes through it.
+ *       The server generates:
+ *       - multipart upload session
+ *       - pre-signed upload URLs
+ *       - upload metadata
  *
- *       After all parts are uploaded, call `POST /upload/multipart/:id/complete`.
+ *       Client uploads chunks directly to MinIO/S3.
+ *
+ *       Benefits:
+ *       - resumable uploads
+ *       - parallel chunk uploads
+ *       - lower backend memory usage
+ *       - supports very large files
+ *
+ *       After uploading all parts:
+ *       call `POST /upload/multipart/{fileId}/complete`
  *     requestBody:
  *       required: true
  *       content:
  *         application/json:
  *           schema:
  *             $ref: '#/components/schemas/MultipartInitInput'
+ *           example:
+ *             fileName: movie.mp4
+ *             mimeType: video/mp4
+ *             sizeBytes: "104857600"
+ *             totalParts: 10
  *     responses:
  *       200:
- *         description: Multipart upload initiated — returns presigned part URLs
+ *         description: Multipart upload initialized
  *         content:
  *           application/json:
  *             schema:
  *               $ref: '#/components/schemas/MultipartInitResponse'
+ *
  *       400:
  *         description: Validation error
+ *
+ *       401:
+ *         description: Missing or invalid JWT
+ *
  *       415:
  *         description: File type not allowed
  */
 router.post(
   '/multipart/init',
+  authenticate as any,
   uploadRateLimit,
   validate(MultipartInitSchema),
   uploadController.multipartInit as any,
@@ -126,13 +199,19 @@ router.post(
  * @swagger
  * /upload/multipart/{fileId}/complete:
  *   post:
- *     summary: Complete a chunked upload
+ *     summary: Complete a multipart upload
  *     tags: [Upload]
  *     security:
- *       - BearerAuth: []
+ *       - bearerAuth: []
  *     description: |
- *       Called after all parts have been uploaded to S3.
- *       Server calls `S3 CompleteMultipartUpload` and enqueues background processing.
+ *       Finalizes multipart upload after all chunks
+ *       have been uploaded to MinIO/S3.
+ *
+ *       Server performs:
+ *       - CompleteMultipartUpload
+ *       - database persistence
+ *       - queue enqueueing
+ *       - background processing trigger
  *     parameters:
  *       - in: path
  *         name: fileId
@@ -140,33 +219,58 @@ router.post(
  *         schema:
  *           type: string
  *           format: uuid
+ *         description: Multipart upload file ID
  *     requestBody:
  *       required: true
  *       content:
  *         application/json:
  *           schema:
  *             type: object
- *             required: [parts]
+ *             required:
+ *               - parts
  *             properties:
  *               parts:
  *                 type: array
  *                 items:
  *                   type: object
  *                   properties:
- *                     partNumber: { type: integer, example: 1 }
- *                     etag:       { type: string,  example: "abc123" }
+ *                     partNumber:
+ *                       type: integer
+ *                       example: 1
+ *                     etag:
+ *                       type: string
+ *                       example: abc123etag
+ *           example:
+ *             parts:
+ *               - partNumber: 1
+ *                 etag: abc123etag
+ *               - partNumber: 2
+ *                 etag: def456etag
  *     responses:
  *       201:
- *         description: Upload completed and queued for processing
+ *         description: Multipart upload completed successfully
  *         content:
  *           application/json:
  *             schema:
  *               $ref: '#/components/schemas/FileUploadResponse'
+ *             example:
+ *               fileId: 3fa85f64-5717-4562-b3fc-2c963f66afa6
+ *               name: movie.mp4
+ *               mimeType: video/mp4
+ *               sizeBytes: "104857600"
+ *               status: processing
+ *               deduplicated: false
+ *               createdAt: 2026-05-23T13:07:34.947Z
+ *
+ *       401:
+ *         description: Missing or invalid JWT
+ *
  *       404:
- *         description: Upload session not found or expired (24h TTL)
+ *         description: Upload session not found or expired
  */
 router.post(
   '/multipart/:fileId/complete',
+  authenticate as any,
   validate(MultipartCompleteSchema),
   uploadController.multipartComplete as any,
 );
