@@ -8,26 +8,41 @@ import {
   AbortMultipartUploadCommand,
   HeadObjectCommand,
 } from '@aws-sdk/client-s3';
+
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
+
 import { Readable } from 'stream';
+
 import fs from 'fs/promises';
 import fss from 'fs';
+
 import path from 'path';
+
 import { s3Client } from '../config/s3';
+
 import { config } from '../config';
+
 import { logger } from '../utils/logger';
 
-// Interface 
+// Interface
 
 export interface StorageDriver {
-  // Upload a stream to storage. Used for single-file uploads.
-  put(key: string, stream: Readable, size: number, mimeType: string): Promise<void>;
+  put(
+    key: string,
+    stream: Readable,
+    size: number,
+    mimeType: string,
+  ): Promise<void>;
 
-  getSignedDownloadUrl(key: string, ttlSeconds: number): Promise<string>;
+  getSignedDownloadUrl(
+    key: string,
+    ttlSeconds: number,
+  ): Promise<string>;
 
-  
-  initiateMultipart(key: string, mimeType: string): Promise<string>;
-
+  initiateMultipart(
+    key: string,
+    mimeType: string,
+  ): Promise<string>;
 
   uploadPart(
     key: string,
@@ -36,37 +51,49 @@ export interface StorageDriver {
     body: Buffer,
   ): Promise<string>;
 
-  //Generate pre-signed URLs so the client uploads parts directly to S3.
   getPresignedPartUrls(
     key: string,
     uploadId: string,
     partCount: number,
     ttlSeconds: number,
-  ): Promise<{ partNumber: number; url: string }[]>;
+  ): Promise<
+    {
+      partNumber: number;
+      url: string;
+    }[]
+  >;
 
-  //Finalise a multipart upload after all parts are received.
   completeMultipart(
     key: string,
     uploadId: string,
-    parts: { PartNumber: number; ETag: string }[],
+    parts: {
+      PartNumber: number;
+      ETag: string;
+    }[],
   ): Promise<void>;
 
-  //Abort an in-progress multipart upload (cleanup orphaned parts)
-  abortMultipart(key: string, uploadId: string): Promise<void>;
+  abortMultipart(
+    key: string,
+    uploadId: string,
+  ): Promise<void>;
 
-  //Delete a stored object. 
   delete(key: string): Promise<void>;
 
-  //Check whether a key exists
   exists(key: string): Promise<boolean>;
 }
 
-//S3 / MinIO Driver 
+// S3 / MinIO Driver
 
 class S3Driver implements StorageDriver {
-  private readonly bucket = config.storage.aws.bucket;
+  private readonly bucket =
+    config.storage.aws.bucket;
 
-  async put(key: string, stream: Readable, size: number, mimeType: string) {
+  async put(
+    key: string,
+    stream: Readable,
+    size: number,
+    mimeType: string,
+  ) {
     await s3Client.send(
       new PutObjectCommand({
         Bucket: this.bucket,
@@ -76,18 +103,35 @@ class S3Driver implements StorageDriver {
         ContentType: mimeType,
       }),
     );
-    logger.debug({ key, size }, 'S3 put complete');
-  }
 
-  async getSignedDownloadUrl(key: string, ttlSeconds: number): Promise<string> {
-    return getSignedUrl(
-      s3Client,
-      new GetObjectCommand({ Bucket: this.bucket, Key: key }),
-      { expiresIn: ttlSeconds },
+    logger.debug(
+      { key, size },
+      'S3 put complete',
     );
   }
 
-  async initiateMultipart(key: string, mimeType: string): Promise<string> {
+  async getSignedDownloadUrl(
+    key: string,
+    ttlSeconds: number,
+  ): Promise<string> {
+    return getSignedUrl(
+      s3Client,
+
+      new GetObjectCommand({
+        Bucket: this.bucket,
+        Key: key,
+      }),
+
+      {
+        expiresIn: ttlSeconds,
+      },
+    );
+  }
+
+  async initiateMultipart(
+    key: string,
+    mimeType: string,
+  ): Promise<string> {
     const res = await s3Client.send(
       new CreateMultipartUploadCommand({
         Bucket: this.bucket,
@@ -95,6 +139,7 @@ class S3Driver implements StorageDriver {
         ContentType: mimeType,
       }),
     );
+
     return res.UploadId!;
   }
 
@@ -114,6 +159,7 @@ class S3Driver implements StorageDriver {
         ContentLength: body.length,
       }),
     );
+
     return res.ETag!;
   }
 
@@ -122,42 +168,71 @@ class S3Driver implements StorageDriver {
     uploadId: string,
     partCount: number,
     ttlSeconds: number,
-  ): Promise<{ partNumber: number; url: string }[]> {
+  ): Promise<
+    {
+      partNumber: number;
+      url: string;
+    }[]
+  > {
     const urls = await Promise.all(
-      Array.from({ length: partCount }, (_, i) => i + 1).map(async (partNumber) => {
+      Array.from(
+        { length: partCount },
+        (_, i) => i + 1,
+      ).map(async (partNumber) => {
         const url = await getSignedUrl(
           s3Client,
+
           new UploadPartCommand({
             Bucket: this.bucket,
             Key: key,
             UploadId: uploadId,
             PartNumber: partNumber,
           }),
-          { expiresIn: ttlSeconds },
+
+          {
+            expiresIn: ttlSeconds,
+          },
         );
-        return { partNumber, url };
+
+        return {
+          partNumber,
+          url,
+        };
       }),
     );
+
     return urls;
   }
 
   async completeMultipart(
     key: string,
     uploadId: string,
-    parts: { PartNumber: number; ETag: string }[],
+    parts: {
+      PartNumber: number;
+      ETag: string;
+    }[],
   ): Promise<void> {
     await s3Client.send(
       new CompleteMultipartUploadCommand({
         Bucket: this.bucket,
         Key: key,
         UploadId: uploadId,
-        MultipartUpload: { Parts: parts },
+        MultipartUpload: {
+          Parts: parts,
+        },
       }),
     );
-    logger.debug({ key, uploadId }, 'S3 multipart complete');
+
+    logger.debug(
+      { key, uploadId },
+      'S3 multipart complete',
+    );
   }
 
-  async abortMultipart(key: string, uploadId: string): Promise<void> {
+  async abortMultipart(
+    key: string,
+    uploadId: string,
+  ): Promise<void> {
     await s3Client.send(
       new AbortMultipartUploadCommand({
         Bucket: this.bucket,
@@ -165,71 +240,133 @@ class S3Driver implements StorageDriver {
         UploadId: uploadId,
       }),
     );
-    logger.warn({ key, uploadId }, 'S3 multipart aborted');
+
+    logger.warn(
+      { key, uploadId },
+      'S3 multipart aborted',
+    );
   }
 
   async delete(key: string): Promise<void> {
     await s3Client.send(
-      new DeleteObjectCommand({ Bucket: this.bucket, Key: key }),
+      new DeleteObjectCommand({
+        Bucket: this.bucket,
+        Key: key,
+      }),
     );
-    logger.debug({ key }, 'S3 object deleted');
+
+    logger.debug(
+      { key },
+      'S3 object deleted',
+    );
   }
 
   async exists(key: string): Promise<boolean> {
     try {
       await s3Client.send(
-        new HeadObjectCommand({ Bucket: this.bucket, Key: key }),
+        new HeadObjectCommand({
+          Bucket: this.bucket,
+          Key: key,
+        }),
       );
+
       return true;
+
     } catch {
       return false;
     }
   }
 }
 
-//Local Disk Driver (dev / test fallback) 
+// Local Disk Driver
 
 class LocalDriver implements StorageDriver {
-  private readonly base = path.resolve(config.storage.localDir);
+  private readonly base =
+    path.resolve(config.storage.localDir);
 
   private filePath(key: string) {
     return path.join(this.base, key);
   }
 
-  private async ensureDir(filePath: string) {
-    await fs.mkdir(path.dirname(filePath), { recursive: true });
+  private async ensureDir(
+    filePath: string,
+  ) {
+    await fs.mkdir(
+      path.dirname(filePath),
+      { recursive: true },
+    );
   }
 
-  async put(key: string, stream: Readable, _size: number, _mimeType: string) {
+  async put(
+    key: string,
+    stream: Readable,
+    _size: number,
+    _mimeType: string,
+  ) {
     const dest = this.filePath(key);
+
     await this.ensureDir(dest);
-    const ws = fss.createWriteStream(dest);
-    await new Promise<void>((resolve, reject) => {
-      stream.pipe(ws);
-      ws.on('finish', resolve);
-      ws.on('error', reject);
-    });
+
+    const ws =
+      fss.createWriteStream(dest);
+
+    await new Promise<void>(
+      (resolve, reject) => {
+        stream.pipe(ws);
+
+        ws.on('finish', resolve);
+
+        ws.on('error', reject);
+      },
+    );
+
+    logger.debug(
+      { key },
+      'Local file stored',
+    );
   }
 
-  async getSignedDownloadUrl(key: string, ttlSeconds: number): Promise<string> {
-    // Local: return a signed path token (HMAC-based) served by a static endpoint
-    const crypto = await import('crypto');
-    const expires = Math.floor(Date.now() / 1000) + ttlSeconds;
+  async getSignedDownloadUrl(
+    key: string,
+    ttlSeconds: number,
+  ): Promise<string> {
+    const crypto =
+      await import('crypto');
+
+    const expires =
+      Math.floor(Date.now() / 1000) +
+      ttlSeconds;
+
     const sig = crypto
-      .createHmac('sha256', config.jwt.secret)
+      .createHmac(
+        'sha256',
+        config.jwt.secret,
+      )
       .update(`${key}:${expires}`)
       .digest('hex')
       .slice(0, 16);
-    return `http://localhost:${config.port}/internal/files/${encodeURIComponent(key)}?expires=${expires}&sig=${sig}`;
+
+    return `${config.appUrl}/internal/files/${encodeURIComponent(
+      key,
+    )}?expires=${expires}&sig=${sig}`;
   }
 
-  // Multipart not supported locally — fall back to single-put
-  async initiateMultipart(_key: string, _mimeType: string): Promise<string> {
+  async initiateMultipart(
+    _key: string,
+    _mimeType: string,
+  ): Promise<string> {
     return `local-${Date.now()}`;
   }
 
-  async uploadPart(_key: string, _uploadId: string, _partNumber: number, body: Buffer): Promise<string> {
-    return Buffer.from(body).toString('base64').slice(0, 16); // fake ETag
+  async uploadPart(
+    _key: string,
+    _uploadId: string,
+    _partNumber: number,
+    body: Buffer,
+  ): Promise<string> {
+    return Buffer.from(body)
+      .toString('base64')
+      .slice(0, 16);
   }
 
   async getPresignedPartUrls(
@@ -237,40 +374,72 @@ class LocalDriver implements StorageDriver {
     uploadId: string,
     partCount: number,
     _ttlSeconds: number,
-  ): Promise<{ partNumber: number; url: string }[]> {
-    return Array.from({ length: partCount }, (_, i) => ({
-      partNumber: i + 1,
-      url: `http://localhost:${config.port}/upload/multipart/${uploadId}/part/${i + 1}?key=${key}`,
-    }));
+  ): Promise<
+    {
+      partNumber: number;
+      url: string;
+    }[]
+  > {
+    return Array.from(
+      { length: partCount },
+      (_, i) => ({
+        partNumber: i + 1,
+
+        url: `${config.appUrl}/upload/multipart/${uploadId}/part/${i + 1}?key=${key}`,
+      }),
+    );
   }
 
-  async completeMultipart(_key: string, _uploadId: string, _parts: { PartNumber: number; ETag: string }[]): Promise<void> {
-    // No-op for local
+  async completeMultipart(
+    _key: string,
+    _uploadId: string,
+    _parts: {
+      PartNumber: number;
+      ETag: string;
+    }[],
+  ): Promise<void> {
+    // no-op
   }
 
-  async abortMultipart(_key: string, _uploadId: string): Promise<void> {
-    // No-op for local
+  async abortMultipart(
+    _key: string,
+    _uploadId: string,
+  ): Promise<void> {
+    // no-op
   }
 
-  async delete(key: string): Promise<void> {
+  async delete(
+    key: string,
+  ): Promise<void> {
     try {
-      await fs.unlink(this.filePath(key));
+      await fs.unlink(
+        this.filePath(key),
+      );
+
     } catch {
-      // Already gone — idempotent
+      // ignore
     }
   }
 
-  async exists(key: string): Promise<boolean> {
+  async exists(
+    key: string,
+  ): Promise<boolean> {
     try {
-      await fs.access(this.filePath(key));
+      await fs.access(
+        this.filePath(key),
+      );
+
       return true;
+
     } catch {
       return false;
     }
   }
 }
 
-//Export correct driver based on config 
+// Export correct driver
 
 export const storage: StorageDriver =
-  config.storage.driver === 's3' ? new S3Driver() : new LocalDriver();
+  config.storage.driver === 's3'
+    ? new S3Driver()
+    : new LocalDriver();
