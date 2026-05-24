@@ -2,12 +2,16 @@ import { Router } from 'express';
 import { fileController } from '../controllers/file.controller';
 import { authenticate } from '../middleware/auth.middleware';
 import { validate } from '../middleware/validate.middleware';
+
 import {
   readRateLimit,
   uploadRateLimit,
 } from '../middleware/ratelimit.middleware';
+
 import { upload } from '../middleware/multer.middleware';
+
 import { uploadController } from '../controllers/upload.controller';
+
 import {
   FileListQuerySchema,
   CreateShareSchema,
@@ -54,7 +58,7 @@ router.get(
  *     summary: Get storage usage summary
  *     tags: [Files]
  *     security:
- *       - BearerAuth: []
+ *       - bearerAuth: []
  *     responses:
  *       200:
  *         description: Storage summary returned
@@ -73,7 +77,7 @@ router.get(
  *     summary: List files
  *     tags: [Files]
  *     security:
- *       - BearerAuth: []
+ *       - bearerAuth: []
  *     parameters:
  *       - in: query
  *         name: cursor
@@ -107,7 +111,7 @@ router.get(
  *     summary: Get file metadata
  *     tags: [Files]
  *     security:
- *       - BearerAuth: []
+ *       - bearerAuth: []
  *     parameters:
  *       - in: path
  *         name: id
@@ -136,7 +140,7 @@ router.get(
  *     summary: Delete file
  *     tags: [Files]
  *     security:
- *       - BearerAuth: []
+ *       - bearerAuth: []
  *     parameters:
  *       - in: path
  *         name: id
@@ -162,7 +166,7 @@ router.delete(
  *     summary: List file versions
  *     tags: [Files]
  *     security:
- *       - BearerAuth: []
+ *       - bearerAuth: []
  *     parameters:
  *       - in: path
  *         name: id
@@ -187,7 +191,7 @@ router.get(
  *     summary: Upload a new version
  *     tags: [Files]
  *     security:
- *       - BearerAuth: []
+ *       - bearerAuth: []
  *     parameters:
  *       - in: path
  *         name: fileId
@@ -223,7 +227,7 @@ router.post(
  *     summary: Create share link
  *     tags: [Files]
  *     security:
- *       - BearerAuth: []
+ *       - bearerAuth: []
  *     parameters:
  *       - in: path
  *         name: id
