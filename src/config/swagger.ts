@@ -58,7 +58,7 @@ Get token from:
 
     components: {
       securitySchemes: {
-        BearerAuth: {
+        bearerAuth: {
           type: 'http',
           scheme: 'bearer',
           bearerFormat: 'JWT',
@@ -206,12 +206,6 @@ Get token from:
         },
       },
     },
-
-    security: [
-      {
-        BearerAuth: [],
-      },
-    ],
   },
 
   apis: ['./src/routes/*.ts'],
