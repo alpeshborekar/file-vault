@@ -58,12 +58,11 @@ Get token from:
 
     components: {
       securitySchemes: {
-        BearerAuth: {
+        bearerAuth: {
           type: 'http',
           scheme: 'bearer',
           bearerFormat: 'JWT',
-          description:
-            'Paste JWT token only (without Bearer prefix)',
+          description: 'JWT token from POST /auth/login',
         },
       },
 
@@ -113,8 +112,7 @@ Get token from:
           properties: {
             token: {
               type: 'string',
-              example:
-                'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...',
+              example: 'eyJhbGciOiJIUzI1NiIs...',
             },
 
             user: {
@@ -175,10 +173,7 @@ Get token from:
 
             status: {
               type: 'string',
-              enum: [
-                'processing',
-                'ready',
-              ],
+              enum: ['processing', 'ready'],
               example: 'processing',
             },
 
